@@ -20,25 +20,12 @@ def generate_csrf_token() -> str:
 
 
 def store_csrf_token(request: Request, response: Response, token: str) -> None:
-    """
-    Store a CSRF token in the session and set a secure cookie.
-
-    Args:
-        request: FastAPI Request object to access session.
-        response: FastAPI Response object to set the cookie.
-        token: The CSRF token to store.
-
-    Raises:
-        HTTPException: If SessionMiddleware is not configured.
-    """
-    # Check for SessionMiddleware
-    if not hasattr(request.app, "middleware") or not any(isinstance(m, SessionMiddleware) for m in request.app.middleware_stack.middleware):
+    
+    try:
+        request.session[CSRF_TOKEN_KEY] = token
+    except AssertionError:
         raise HTTPException(status_code=500,detail="SessionMiddleware required for CSRF token storage. Add it to your FastAPI app.")
 
-    # Store token in session
-    request.session[CSRF_TOKEN_KEY] = token
-
-    # Set secure cookie
     response.set_cookie(
         key=CSRF_TOKEN_KEY,
         value=token,
@@ -81,8 +68,11 @@ async def validate_csrf_token(request: Request, session_token: str) -> None:
         form = await request.form()
         submitted_token = form.get(CSRF_TOKEN_KEY)
     elif not submitted_token and request.headers.get("content-type", "").startswith("application/json"):
-        body = await request.json()
-        submitted_token = body.get(CSRF_TOKEN_KEY)
+        try:
+            body = await request.json()
+            submitted_token = body.get(CSRF_TOKEN_KEY)
+        except Exception:
+            raise HTTPException(400, detail="Malformed or empty JSON body; CSRF token missing")
 
     if not submitted_token or not secrets.compare_digest(submitted_token, session_token):
         raise HTTPException(status_code=403, detail="Invalid CSRF token")
@@ -111,7 +101,10 @@ def use_csrf() -> Callable:
             if not request:
                 raise RuntimeError("No Request object found in route handler parameters")
 
-            session_token = request.session.get(CSRF_TOKEN_KEY)
+            try:
+                session_token = request.session.get(CSRF_TOKEN_KEY)
+            except AssertionError:
+                 raise HTTPException(status_code=500,detail="SessionMiddleware required for CSRF token storage. Add it to your FastAPI app.")
             await validate_csrf_token(request, session_token)
 
             return await route_handler(*args, **kwargs)

@@ -1,26 +1,38 @@
 from datetime import datetime, timedelta
-from jose import jwt
+from jose import jwt, JWTError
+from jose.constants import ALGORITHMS
 
-# Configuration
-SECRET_KEY = "secret"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+TOKEN_EXPIRE = 30
 
-def create_access_token(data: dict,  secret_key: str = SECRET_KEY,algorithm: str=ALGORITHM,expires_delta: timedelta = None):
+
+class JWTTokenError(Exception):
+    """Raised when JWT token generation fails or input is invalid."""
+    pass
+
+
+def generate_token( data: dict, secret_key: str, algorithm: str = ALGORITHM, expires_delta: timedelta = None) -> str:
+    
+    if not data or not isinstance(data, dict):
+        raise JWTTokenError("Payload 'data' must be a non-empty dictionary.")
+    
+    if not secret_key:
+        raise JWTTokenError("Secret key must be provided.")
+    
+    if algorithm not in ALGORITHMS.SUPPORTED:
+        raise JWTTokenError(f"Algorithm '{algorithm}' is not supported. Choose from: {', '.join(ALGORITHMS.SUPPORTED)}")
+
     now = datetime.utcnow()
-
-    if expires_delta:
-        expire = now + expires_delta
-    else:
-        expire = now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = now + (expires_delta or timedelta(minutes=TOKEN_EXPIRE))
 
     payload = {
         "sub": data,
         "iat": now,
-        "exp": expire,
+        "exp": expire
     }
 
-    encoded_jwt = jwt.encode(payload, secret_key, algorithm=algorithm)
-    
-    return encoded_jwt
+    try:
+        return jwt.encode(payload, secret_key, algorithm=algorithm)
+    except JWTError as e:
+        raise JWTTokenError(f"JWT encoding failed: {e}")
 

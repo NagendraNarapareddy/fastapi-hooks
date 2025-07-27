@@ -4,11 +4,11 @@ from typing import Callable, Optional
 from jose.constants import ALGORITHMS
 from datetime import datetime, timedelta
 from jose import jwt,ExpiredSignatureError
+from fastapi import Request,Response,HTTPException
 from jose.exceptions import JWTError, JWKError, JWSError
-from fastapi import Request,Response,HTTPException, status
 
 
-TOKEN_EXPIRE = 1
+TOKEN_EXPIRE = 15
 
 
 class JWTTokenError(Exception):
@@ -41,7 +41,7 @@ def generate_jwt_token( data: dict, secret_key: str, algorithm: str = "HS256", e
         raise JWTTokenError(f"JWT encoding failed: {e}")
 
 
-def store_jwt_token(response:Response,token: str,max_age: int = 1800,same_site:str="strict")-> None:
+def store_jwt_token(response:Response,token: str,same_site:str)-> None:
     try:
         if not token or not isinstance(token, str):
             raise JWTTokenError("Token must be a non-empty string.")
@@ -50,7 +50,7 @@ def store_jwt_token(response:Response,token: str,max_age: int = 1800,same_site:s
             key="refresh_token",
             value=token,
             httponly=True,
-            max_age=max_age,
+            max_age=timedelta(days=7).total_seconds(),
             samesite=same_site,
             secure=True
         )
@@ -59,11 +59,13 @@ def store_jwt_token(response:Response,token: str,max_age: int = 1800,same_site:s
         raise JWTTokenError(f"Failed to store JWT token in cookie: {e}")
 
 
-def get_jwt_token(response: Response, data:dict,secret_key,algorithm,same_site: str = "strict"):
+def get_jwt_token(response: Response, data:dict,secret_key:str,algorithm:str,same_site: str = "strict"):
     
     access_token=generate_jwt_token(data,secret_key,algorithm)
-    refresh_token=generate_jwt_token(data,secret_key,algorithm,expires_delta=timedelta(minutes=1))
-    store_jwt_token(response,refresh_token,int(timedelta(minutes=1).total_seconds()),same_site)
+    
+    refresh_token=generate_jwt_token(data,secret_key,algorithm,expires_delta=timedelta(days=7))
+    
+    store_jwt_token(response,refresh_token,same_site)
     
     
     return {

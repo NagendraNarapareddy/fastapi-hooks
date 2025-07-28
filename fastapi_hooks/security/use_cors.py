@@ -1,6 +1,6 @@
 import functools
 from fastapi import Response,Request
-
+from typing import Optional
 
 cors_presets = {
     # 1. Public read-only APIs
@@ -93,32 +93,58 @@ def normalize(value):
     return value if isinstance(value, list) else [value]
 
 
-def set_cors_headers(response, policy):
-
+def set_cors_headers(request: Request, response: Response, policy: dict):
+    
     origins = normalize(policy.get("allow_origins"))
     methods = normalize(policy.get("allow_methods"))
     headers = normalize(policy.get("allow_headers"))
     expose  = normalize(policy.get("expose_headers"))
 
+    # Origin
     if origins:
-        response.headers["Access-Control-Allow-Origin"] = ",".join(origins)
+        if origins == ["*"]:
+            response.headers["Access-Control-Allow-Origin"] = "*"
+        else:
+            origin = request.headers.get("origin")
+            if origin in origins:
+                response.headers["Access-Control-Allow-Origin"] = origin
+
+    # Methods (reflect on wildcard)
     if methods:
-        response.headers["Access-Control-Allow-Methods"] = ",".join(methods)
+        if methods == ["*"]:
+            req_method = request.headers.get("access-control-request-method")
+            if req_method:
+                response.headers["Access-Control-Allow-Methods"] = req_method
+        else:
+            response.headers["Access-Control-Allow-Methods"] = ",".join(methods)
+
+    # Headers (reflect on wildcard)
     if headers:
-        response.headers["Access-Control-Allow-Headers"] = ",".join(headers)
+        if headers == ["*"]:
+            req_hdrs = request.headers.get("access-control-request-headers")
+            if req_hdrs:
+                response.headers["Access-Control-Allow-Headers"] = req_hdrs
+        else:
+            response.headers["Access-Control-Allow-Headers"] = ",".join(headers)
+
+    # Credentials
     if policy.get("allow_credentials"):
         response.headers["Access-Control-Allow-Credentials"] = "true"
+
+    # Expose headers
     if expose:
         response.headers["Access-Control-Expose-Headers"] = ",".join(expose)
+
+    # Max age
     if policy.get("max_age") is not None:
         response.headers["Access-Control-Max-Age"] = str(policy.get("max_age"))
 
 
-async def preflight(request: Request, response: Response):
+async def preflight(request: Request,policy:dict):
+    response=Response(status_code=204)
+    set_cors_headers(request,response, policy)
+    return response
     
-    set_cors_headers(response, policy=None)
-    return Response(status_code=204)
-
 
 def use_cors(preset_or_kwargs="public", **kwargs):
     if isinstance(preset_or_kwargs, str):
@@ -128,20 +154,33 @@ def use_cors(preset_or_kwargs="public", **kwargs):
 
     if kwargs:
         policy = {**policy, **kwargs} 
+    
+    if not policy.get("allow_origins"):
+        raise ValueError("CORS policy must define non-empty 'allow_origins'. Set it explicitly when using @use_cors().")
 
     def decorator(route_handler):
         @functools.wraps(route_handler)
-        async def wrapper(*args, **kwargs_inner):
-            response = kwargs_inner.get("response")
+        async def wrapper(*args, **kwargs):
+            request:Optional[Request]=None
+            response: Optional[Response] = None
+            
+            for arg in args:
+                if isinstance(arg, Request):
+                    request = arg
+                elif isinstance(arg, Response):
+                    response = arg
+                    
+            if not request:
+                request = kwargs.get("request")
+            
             if not response:
-                for arg in args:
-                    if isinstance(arg, Response):
-                        response = arg
-                        break
-            if not response:
-                raise RuntimeError("Handler must accept a `response: Response`")
-            result = await route_handler(*args, **kwargs_inner)
-            set_cors_headers(response, policy)
+                response = kwargs.get("response")
+            
+            if not response or not request:
+                raise RuntimeError("Request or Response object not found in route handler parameters.")
+            
+            result = await route_handler(*args, **kwargs)
+            set_cors_headers(request,response, policy)
             return result
 
         return wrapper

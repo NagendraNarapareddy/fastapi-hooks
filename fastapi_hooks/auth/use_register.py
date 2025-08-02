@@ -41,7 +41,6 @@ def use_register(schema, model, field):
                         detail="Database session not provided or invalid"
                     )
 
-                # Check uniqueness
                 column = getattr(model, field)
                 value = getattr(user_data, field, None)
                 if value is None:
@@ -57,12 +56,10 @@ def use_register(schema, model, field):
                         detail=f"A user with that {field} already exists"
                     )
 
-                # Prepare payload and hash password
                 payload = user_data.dict()
                 if "password" in payload:
                     payload["hashed_password"] = pwd_context.hash(payload.pop("password"))
 
-                # Create and persist new user
                 new_user = model(**payload)
                 db.add(new_user)
                 db.commit()
@@ -70,8 +67,8 @@ def use_register(schema, model, field):
                 
                 kwargs['new_user'] = new_user
 
-                result=await func(*args,**kwargs)
-                return result
+                return await func(*args,**kwargs)
+                
                 
             except HTTPException:
                 raise

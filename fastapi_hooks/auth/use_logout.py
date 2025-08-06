@@ -11,8 +11,6 @@ def use_logout(secret_key: str, algorithm: str = "HS256", same_site: str = "stri
         async def wrapper(*args, **kwargs):
             request: Optional[Request] = None
             response: Optional[Response] = None
-
-            # Extract Request and Response objects from args/kwargs
             for arg in args:
                 if isinstance(arg, Request):
                     request = arg
@@ -26,10 +24,8 @@ def use_logout(secret_key: str, algorithm: str = "HS256", same_site: str = "stri
             if not request or not response:
                 raise JWTTokenError("Request or Response object not found in route handler parameters.")
 
-            # Ensure token is valid or refreshable
             await validate_jwt_token(request, response, secret_key, algorithm)
 
-            # Clear the refresh token cookie
             response.delete_cookie(
                 key="refresh_token",
                 samesite=same_site,

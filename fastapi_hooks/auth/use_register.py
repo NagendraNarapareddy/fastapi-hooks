@@ -2,9 +2,9 @@ import inspect
 from functools import wraps
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from passlib.context import CryptContext
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

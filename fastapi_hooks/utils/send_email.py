@@ -2,22 +2,9 @@ import secrets
 import aiosmtplib
 from email.message import EmailMessage
 
-SMTP_HOST = "smtp.gmail.com"
-SMTP_PORT = 587
-SMTP_USERNAME = "your-email@gmail.com"
-SMTP_PASSWORD = "your-email-password"
-FROM_EMAIL = "no-reply@example.com"
-FROM_NAME = "YourApp Support"
-
 BASE_MAGIC_LINK_URL = "https://yourapp.com/magic-login?token="  # your magic link base URL
 
-async def send_email(to_email: str, method: str = None) -> dict | None:
-    """
-    Sends email to user.
-    If method == "magic-link", generates a token + link, sends it,
-    and returns {"token": ..., "link": ...}
-    Otherwise, sends a generic email and returns None.
-    """
+async def send_email(config:dict,to_email: str, method: str = None) -> dict | None:
     if method == "magic-link":
         token = secrets.token_urlsafe(32)
         magic_link = f"{BASE_MAGIC_LINK_URL}{token}"
@@ -35,17 +22,17 @@ async def send_email(to_email: str, method: str = None) -> dict | None:
         """
 
         message = EmailMessage()
-        message["From"] = f"{FROM_NAME} <{FROM_EMAIL}>"
+        message["From"] = f"{config.FROM_NAME} <{config.FROM_EMAIL}>"
         message["To"] = to_email
         message["Subject"] = subject
         message.set_content(body, subtype="html")
 
         await aiosmtplib.send(
             message,
-            hostname=SMTP_HOST,
-            port=SMTP_PORT,
-            username=SMTP_USERNAME,
-            password=SMTP_PASSWORD,
+            hostname=config.SMTP_HOST,
+            port=config.SMTP_PORT,
+            username=config.SMTP_USERNAME,
+            password=config.SMTP_PASSWORD,
             start_tls=True,
         )
         return {"token": token, "link": magic_link}
@@ -62,17 +49,17 @@ async def send_email(to_email: str, method: str = None) -> dict | None:
         """
 
         message = EmailMessage()
-        message["From"] = f"{FROM_NAME} <{FROM_EMAIL}>"
+        message["From"] = f"{config.FROM_NAME} <{config.FROM_EMAIL}>"
         message["To"] = to_email
         message["Subject"] = subject
         message.set_content(body, subtype="html")
 
         await aiosmtplib.send(
             message,
-            hostname=SMTP_HOST,
-            port=SMTP_PORT,
-            username=SMTP_USERNAME,
-            password=SMTP_PASSWORD,
+            hostname=config.SMTP_HOST,
+            port=config.SMTP_PORT,
+            username=config.SMTP_USERNAME,
+            password=config.SMTP_PASSWORD,
             start_tls=True,
         )
         return None

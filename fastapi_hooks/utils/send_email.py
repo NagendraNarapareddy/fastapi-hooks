@@ -18,6 +18,10 @@ async def send_email(config: dict, to_email: str, body: str,subject:str) -> None
         password=config.SMTP_PASSWORD,
         start_tls=True,
     )
+    
+    
+    
+    
 
 
 
